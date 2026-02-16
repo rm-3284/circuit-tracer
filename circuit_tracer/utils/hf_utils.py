@@ -44,6 +44,36 @@ class HfUri(NamedTuple):
         return cls(repo_id, file_path, revision)
 
 
+def _build_gemma_scope_2_config(repo_id: str, revision: str | None = None) -> dict:
+    """Build a config for gemma-scope-2 262k small_affine variant (26 layers).
+    
+    Args:
+        repo_id: HuggingFace repo ID (e.g., "google/gemma-scope-2-4b-it")
+        revision: Optional revision to use
+        
+    Returns:
+        Configuration dict for 262k small_affine transcoders
+    """
+    subfolder = "transcoder_all"
+    transcoders = [
+        f"hf://{repo_id}/{subfolder}/layer_{i}_width_262k_l0_small_affine"
+        for i in range(26)  # Gemma 2 4B-IT has 26 layers
+    ]
+    
+    config = {
+        "model_kind": "transcoder_set",
+        "repo_id": repo_id,
+        "revision": revision or "main",
+        "subfolder": subfolder,
+        "scan": f"{repo_id}/{subfolder}",
+        "feature_input_hook": "blocks.{{layer}}.ln2.hook_normalized",
+        "feature_output_hook": "blocks.{{layer}}.hook_mlp_out",
+        "transcoders": transcoders,
+    }
+    return config
+
+
+
 def load_transcoder_from_hub(
     hf_ref: str,
     device: torch.device | None = None,
@@ -84,13 +114,19 @@ def load_transcoder_from_hub(
             lazy_decoder=lazy_decoder,
         )
 
-    # resolve legacy references
-    if hf_ref == "gemma":
-        hf_ref = "mwhanna/gemma-scope-transcoders"
-    elif hf_ref == "llama":
-        hf_ref = "mntss/transcoder-Llama-3.2-1B"
+    # resolve legacy references and predefined transcoder sets
+    predefined_refs = {
+        "gemma": "mwhanna/gemma-scope-transcoders",
+        "llama": "mntss/transcoder-Llama-3.2-1B",
+        "gemma-3-4b-it-scope2": "google/gemma-scope-2-4b-it//transcoder_all",
+    }
+    if hf_ref in predefined_refs:
+        hf_ref = predefined_refs[hf_ref]
 
     hf_uri = HfUri.from_str(hf_ref)
+    
+    # Try to load config.yaml, but if it doesn't exist and this is a gemma-scope-2 variant,
+    # default to 262k small_affine
     try:
         config_path = hf_hub_download(
             repo_id=hf_uri.repo_id,
@@ -98,17 +134,21 @@ def load_transcoder_from_hub(
             filename="config.yaml",
             subfolder=hf_uri.file_path,
         )
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
     except Exception as e:
-        config_file = (
-            f"{hf_uri.file_path}/config.yaml" if hf_uri.file_path is not None else "config.yaml"
-        )
-        raise FileNotFoundError(f"Could not download {config_file} from {hf_uri.repo_id}") from e
-
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+        # If no config.yaml exists, check if this is a gemma-scope-2 transcoder_all directory
+        if "gemma-scope-2" in hf_uri.repo_id and hf_uri.file_path == "transcoder_all":
+            logger.info(f"No config.yaml found, defaulting to 262k small_affine for {hf_uri.repo_id}")
+            config = _build_gemma_scope_2_config(hf_uri.repo_id, revision=hf_uri.revision)
+        else:
+            config_file = (
+                f"{hf_uri.file_path}/config.yaml" if hf_uri.file_path is not None else "config.yaml"
+            )
+            raise FileNotFoundError(f"Could not download {config_file} from {hf_uri.repo_id}") from e
 
     config["repo_id"] = hf_uri.repo_id
-    config["revision"] = hf_uri.revision
+    config["revision"] = hf_uri.revision or config.get("revision", "main")
     config["subfolder"] = hf_uri.file_path
     repo_info = (
         hf_uri.repo_id if hf_uri.file_path is None else hf_uri.repo_id + "//" + hf_uri.file_path
