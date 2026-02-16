@@ -64,8 +64,8 @@ def _build_gemma_2_2b_pt_config(repo_id: str, revision: str | None = None) -> di
         "revision": revision or "main",
         "subfolder": None,
         "scan": repo_id,
-        "feature_input_hook": "layers.{layer}.post_attention_layernorm",
-        "feature_output_hook": "layers.{layer}.mlp",
+        "feature_input_hook": "blocks.{layer}.hook_mlp_in",
+        "feature_output_hook": "blocks.{layer}.hook_mlp_out",
         "transcoders": transcoders,
     }
 
@@ -118,8 +118,8 @@ def _build_gemma_scope_2_config(repo_id: str, revision: str | None = None) -> di
         "revision": revision or "main",
         "subfolder": subfolder,
         "scan": f"{repo_id}/{subfolder}",
-        "feature_input_hook": "blocks.{{layer}}.ln2.hook_normalized",
-        "feature_output_hook": "blocks.{{layer}}.hook_mlp_out",
+        "feature_input_hook": "blocks.{layer}.hook_mlp_in",
+        "feature_output_hook": "blocks.{layer}.hook_mlp_out",
         "transcoders": transcoders,
     }
     return config
@@ -182,7 +182,7 @@ def _build_gemma_scope_2_config_from_repo(
         "revision": revision or "main",
         "subfolder": subfolder,
         "scan": scan,
-        "feature_input_hook": "blocks.{layer}.ln2.hook_normalized",
+        "feature_input_hook": "blocks.{layer}.hook_mlp_in",
         "feature_output_hook": "blocks.{layer}.hook_mlp_out",
         "transcoders": transcoders,
     }
