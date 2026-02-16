@@ -64,7 +64,7 @@ def _build_gemma_2_2b_pt_config(repo_id: str, revision: str | None = None) -> di
         "revision": revision or "main",
         "subfolder": None,
         "scan": repo_id,
-        "feature_input_hook": "hook_mlp_in",
+        "feature_input_hook": "ln2.hook_normalized",
         "feature_output_hook": "hook_mlp_out",
         "transcoders": transcoders,
     }
@@ -118,7 +118,7 @@ def _build_gemma_scope_2_config(repo_id: str, revision: str | None = None) -> di
         "revision": revision or "main",
         "subfolder": subfolder,
         "scan": f"{repo_id}/{subfolder}",
-        "feature_input_hook": "hook_mlp_in",
+        "feature_input_hook": "ln2.hook_normalized",
         "feature_output_hook": "hook_mlp_out",
         "transcoders": transcoders,
     }
@@ -182,7 +182,7 @@ def _build_gemma_scope_2_config_from_repo(
         "revision": revision or "main",
         "subfolder": subfolder,
         "scan": scan,
-        "feature_input_hook": "hook_mlp_in",
+        "feature_input_hook": "ln2.hook_normalized",
         "feature_output_hook": "hook_mlp_out",
         "transcoders": transcoders,
     }
